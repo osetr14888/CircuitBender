@@ -16,7 +16,7 @@ import { SchematicComponentView } from './components/SchematicComponent';
 import { Sidebar } from './components/Sidebar';
 import { COMPONENT_DRAG_TYPE, isComponentKind } from './components/componentCatalog';
 import { PropertiesPanel } from './components/PropertiesPanel';
-import { GRID_SIZE, pinPosition, snapToGrid } from './components/schematicGeometry';
+import { GRID_SIZE, manhattanWirePoints, pinPosition, snapToGrid } from './components/schematicGeometry';
 import { SpiceClient, type SpiceSimulationResult } from './simulation/spiceClient';
 import { generateNetlist } from './simulation/netlistGenerator';
 import { AudioEngine } from './audio/audioEngine';
@@ -43,7 +43,7 @@ function Grid({ width, height }: { width: number; height: number }) {
         <Line
           key={line.key}
           points={line.points}
-          stroke="#2e2e2e"
+          stroke="#26272a"
           strokeWidth={1}
           listening={false}
         />
@@ -56,10 +56,14 @@ function Canvas() {
   const components = useAppStore((state) => state.project.components);
   const nets = useAppStore((state) => state.project.nets);
   const selectedId = useAppStore((state) => state.selectedId);
+  const selectedNetId = useAppStore((state) => state.selectedNetId);
   const addComponent = useAppStore((state) => state.addComponent);
   const updateComponentPosition = useAppStore((state) => state.updateComponentPosition);
   const addNet = useAppStore((state) => state.addNet);
   const select = useAppStore((state) => state.select);
+  const selectNet = useAppStore((state) => state.selectNet);
+  const removeComponent = useAppStore((state) => state.removeComponent);
+  const removeNet = useAppStore((state) => state.removeNet);
   const isProjectLoading = useAppStore((state) => state.isProjectLoading);
 
   const containerRef = useRef<HTMLDivElement>(null);
@@ -101,9 +105,35 @@ function Canvas() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [activePin]);
 
+  useEffect(() => {
+    const handleKeyDown = (event: KeyboardEvent) => {
+      if (event.key !== 'Delete' && event.key !== 'Backspace') {
+        return;
+      }
+      const target = event.target;
+      if (
+        target instanceof HTMLInputElement ||
+        target instanceof HTMLTextAreaElement ||
+        target instanceof HTMLSelectElement
+      ) {
+        return;
+      }
+      if (selectedNetId !== null) {
+        removeNet(selectedNetId);
+        return;
+      }
+      if (selectedId !== null) {
+        removeComponent(selectedId);
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedId, selectedNetId, removeComponent, removeNet]);
+
   const handleStageClick = (event: KonvaEventObject<MouseEvent | TouchEvent>) => {
     if (event.target === event.target.getStage()) {
       select(null);
+      selectNet(null);
       setActivePin(null);
     }
   };
@@ -185,24 +215,33 @@ function Canvas() {
               }
               const from = pinPosition(fromComponent, net.pins[0].index);
               const to = pinPosition(toComponent, net.pins[1].index);
+              const selected = net.id === selectedNetId;
               return (
                 <Line
                   key={net.id}
-                  points={[from.x, from.y, to.x, to.y]}
-                  stroke="#4fc3f7"
-                  strokeWidth={2}
-                  listening={false}
+                  points={manhattanWirePoints(from, to)}
+                  bezier
+                  stroke={selected ? '#ff5252' : '#4fc3f7'}
+                  strokeWidth={selected ? 3 : 2}
+                  hitStrokeWidth={12}
+                  onClick={(event) => {
+                    event.cancelBubble = true;
+                    selectNet(net.id);
+                  }}
+                  onTap={(event) => {
+                    event.cancelBubble = true;
+                    selectNet(net.id);
+                  }}
                 />
               );
             })}
             {previewFrom !== null && (
               <Line
-                points={[
-                  previewFrom.x,
-                  previewFrom.y,
-                  pointer?.x ?? previewFrom.x,
-                  pointer?.y ?? previewFrom.y,
-                ]}
+                points={manhattanWirePoints(previewFrom, {
+                  x: pointer?.x ?? previewFrom.x,
+                  y: pointer?.y ?? previewFrom.y,
+                })}
+                bezier
                 stroke="#ffd740"
                 strokeWidth={2}
                 dash={[6, 4]}

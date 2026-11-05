@@ -1,4 +1,5 @@
 import { useMemo } from 'react';
+import { Trash2 } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { KIND_LABELS } from './componentCatalog';
 import { generateNetlist } from '../simulation/netlistGenerator';
@@ -28,6 +29,7 @@ export function PropertiesPanel() {
     state.project.components.find((component) => component.id === selectedId),
   );
   const updateComponentParam = useAppStore((state) => state.updateComponentParam);
+  const removeComponent = useAppStore((state) => state.removeComponent);
 
   if (selected === undefined) {
     return (
@@ -41,7 +43,19 @@ export function PropertiesPanel() {
 
   return (
     <aside className="panel panel-right">
-      <h2>Properties</h2>
+      <div className="props-header">
+        <h2>Properties</h2>
+        <button
+          type="button"
+          className="props-delete-button"
+          title="Delete component (Delete)"
+          aria-label="Delete selected component"
+          onClick={() => removeComponent(selected.id)}
+        >
+          <Trash2 size={15} aria-hidden="true" />
+          Delete
+        </button>
+      </div>
       <dl className="props">
         <dt>kind</dt>
         <dd>{KIND_LABELS[selected.kind]}</dd>
@@ -63,11 +77,10 @@ export function PropertiesPanel() {
             <label key={name} className="props-param">
               <span className="props-param-label">{PARAM_LABELS[name] ?? name}</span>
               <input
-                key={`${selected.id}-${name}`}
                 type="number"
                 step="any"
                 className="props-param-input"
-                defaultValue={value}
+                value={value}
                 onChange={(event) => {
                   const next = event.currentTarget.valueAsNumber;
                   if (!Number.isNaN(next)) {

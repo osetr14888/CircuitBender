@@ -31,3 +31,23 @@ export function pinPosition(
       return { x: x + local.x, y: y + local.y };
   }
 }
+
+export function manhattanWirePoints(
+  from: { x: number; y: number },
+  to: { x: number; y: number },
+): number[] {
+  const horizontalFirst = Math.abs(to.x - from.x) >= Math.abs(to.y - from.y);
+  const corner = horizontalFirst
+    ? { x: to.x, y: from.y }
+    : { x: from.x, y: to.y };
+  return [
+    from.x,
+    from.y,
+    corner.x,
+    corner.y,
+    corner.x,
+    corner.y,
+    to.x,
+    to.y,
+  ];
+}
