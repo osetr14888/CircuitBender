@@ -1,6 +1,7 @@
 export type ComponentKind =
   | 'resistor'
   | 'capacitor'
+  | 'inductor'
   | 'vsource'
   | 'ground'
   | 'diode'

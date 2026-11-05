@@ -44,6 +44,8 @@ function formatValue(kind: ComponentKind, params: Record<string, number>): strin
       return formatSiValue(params.resistance ?? 0, 'Ω');
     case 'capacitor':
       return formatSiValue(params.capacitance ?? 0, 'F');
+    case 'inductor':
+      return formatSiValue(params.inductance ?? 0, 'H');
     case 'vsource':
       return `${params.voltage ?? 0} V`;
     case 'ground':
@@ -86,6 +88,19 @@ function SymbolPrimitives({ kind }: { kind: ComponentKind }) {
             strokeWidth={2}
           />
           <Path data="M 8,0 L 20,0" stroke={SYMBOL_STROKE} strokeWidth={2} />
+        </>
+      );
+    case 'inductor':
+      return (
+        <>
+          <Path data="M -30,0 L -24,0" stroke={SYMBOL_STROKE} strokeWidth={2} />
+          <Path
+            data="M -24,0 A 6,6 0 0 1 -12,0 A 6,6 0 0 1 0,0 A 6,6 0 0 1 12,0 A 6,6 0 0 1 24,0"
+            stroke={SYMBOL_STROKE}
+            strokeWidth={2}
+            lineJoin="round"
+          />
+          <Path data="M 24,0 L 30,0" stroke={SYMBOL_STROKE} strokeWidth={2} />
         </>
       );
     case 'vsource':

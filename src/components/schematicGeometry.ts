@@ -6,6 +6,7 @@ export const PIN_RADIUS = 5;
 const PIN_INDEXES: Record<ComponentKind, readonly PinIndex[]> = {
   resistor: [0, 1],
   capacitor: [0, 1],
+  inductor: [0, 1],
   vsource: [0, 1],
   ground: [0, 1],
   diode: [0, 1],
@@ -23,6 +24,10 @@ const PIN_OFFSETS: Record<ComponentKind, Partial<Record<PinIndex, { x: number; y
   capacitor: {
     0: { x: -20, y: 0 },
     1: { x: 20, y: 0 },
+  },
+  inductor: {
+    0: { x: -30, y: 0 },
+    1: { x: 30, y: 0 },
   },
   vsource: {
     0: { x: -40, y: 0 },
@@ -61,6 +66,7 @@ const PIN_OFFSETS: Record<ComponentKind, Partial<Record<PinIndex, { x: number; y
 const HALF_SIZES: Record<ComponentKind, { halfWidth: number; halfHeight: number }> = {
   resistor: { halfWidth: 35, halfHeight: 15 },
   capacitor: { halfWidth: 25, halfHeight: 15 },
+  inductor: { halfWidth: 35, halfHeight: 15 },
   vsource: { halfWidth: 45, halfHeight: 20 },
   ground: { halfWidth: 45, halfHeight: 25 },
   diode: { halfWidth: 25, halfHeight: 15 },

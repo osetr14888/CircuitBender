@@ -5,6 +5,7 @@ export const COMPONENT_DRAG_TYPE = 'application/x-circuitbender-component';
 export const COMPONENT_KINDS: readonly ComponentKind[] = [
   'resistor',
   'capacitor',
+  'inductor',
   'vsource',
   'ground',
   'diode',
@@ -17,6 +18,7 @@ export const COMPONENT_KINDS: readonly ComponentKind[] = [
 export const KIND_LABELS: Record<ComponentKind, string> = {
   resistor: 'Resistor',
   capacitor: 'Capacitor',
+  inductor: 'Inductor',
   vsource: 'Voltage source',
   ground: 'Ground',
   diode: 'Diode',

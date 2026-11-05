@@ -10,6 +10,7 @@ import type {
 const DEFAULT_PARAMS: Record<ComponentKind, Record<string, number>> = {
   resistor: { resistance: 1000 },
   capacitor: { capacitance: 1e-6 },
+  inductor: { inductance: 1e-3 },
   vsource: { voltage: 5 },
   ground: {},
   diode: {},

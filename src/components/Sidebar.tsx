@@ -7,6 +7,7 @@ import {
   GitCommitHorizontal,
   GripVertical,
   Pause,
+  Waves,
   Zap,
 } from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
@@ -16,6 +17,7 @@ import { COMPONENT_DRAG_TYPE, COMPONENT_KINDS, KIND_LABELS } from './componentCa
 const KIND_ICONS: Record<ComponentKind, LucideIcon> = {
   resistor: Activity,
   capacitor: Pause,
+  inductor: Waves,
   vsource: Battery,
   ground: ArrowDownToLine,
   diode: Zap,

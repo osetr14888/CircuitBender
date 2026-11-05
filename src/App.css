@@ -554,6 +554,9 @@ body {
 .palette-item[data-kind='capacitor'] .palette-icon {
   color: #4fc3f7;
 }
+.palette-item[data-kind='inductor'] .palette-icon {
+  color: #a1887f;
+}
 .palette-item[data-kind='vsource'] .palette-icon {
   color: #81c784;
 }

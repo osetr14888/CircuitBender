@@ -144,6 +144,10 @@ export function generateNetlist(project: SchematicProject): NetlistAnalysis {
     if (component.kind === 'capacitor') {
       continue;
     }
+    if (component.kind === 'nmos' || component.kind === 'pmos') {
+      conductorRoots.add(nets.find(pinKey({ componentId: component.id, index: 2 })));
+      continue;
+    }
     for (const index of pinIndexes(component.kind)) {
       conductorRoots.add(nets.find(pinKey({ componentId: component.id, index })));
     }
@@ -169,14 +173,19 @@ export function generateNetlist(project: SchematicProject): NetlistAnalysis {
           `C${name} ${node1} ${node2} ${formatSpiceNumber(component.params.capacitance ?? 1e-7)}`,
         );
         break;
+      case 'inductor':
+        lines.push(
+          `L${name} ${node1} ${node2} ${formatSpiceNumber(component.params.inductance ?? 1e-3)}`,
+        );
+        break;
       case 'vsource': {
         const amplitude = formatSpiceNumber(component.params.voltage ?? 5);
         lines.push(`V${name} ${node1} ${node2} PULSE(0 ${amplitude} 0 1n 1n 1m 2m)`);
         break;
       }
       case 'diode':
-        models.add('DMOD');
-        lines.push(`D${name} ${node1} ${node2} DMOD`);
+        models.add('DFAST');
+        lines.push(`D${name} ${node1} ${node2} DFAST`);
         break;
       case 'npn':
         models.add('QNPN');
@@ -187,30 +196,30 @@ export function generateNetlist(project: SchematicProject): NetlistAnalysis {
         lines.push(`Q${name} ${node1} ${node2} ${node3} QPNP`);
         break;
       case 'nmos':
-        models.add('NMOD');
-        lines.push(`M${name} ${node1} ${node2} ${node3} ${node3} NMOD`);
+        models.add('MNMOS');
+        lines.push(`M${name} ${node1} ${node2} ${node3} ${node3} MNMOS`);
         break;
       case 'pmos':
-        models.add('PMOD');
-        lines.push(`M${name} ${node1} ${node2} ${node3} ${node3} PMOD`);
+        models.add('MPMOS');
+        lines.push(`M${name} ${node1} ${node2} ${node3} ${node3} MPMOS`);
         break;
     }
   }
 
-  if (models.has('DMOD')) {
-    lines.push('.model DMOD d(IS=1e-14)');
-  }
   if (models.has('QNPN')) {
-    lines.push('.model QNPN npn(IS=1e-14 BF=100)');
+    lines.push('.model QNPN NPN(BF=100)');
   }
   if (models.has('QPNP')) {
-    lines.push('.model QPNP pnp(IS=1e-14 BF=100)');
+    lines.push('.model QPNP PNP(BF=100)');
   }
-  if (models.has('NMOD')) {
-    lines.push('.model NMOD nmos(VTO=1 KP=2e-4)');
+  if (models.has('MNMOS')) {
+    lines.push('.model MNMOS NMOS(VTO=2 KP=0.1)');
   }
-  if (models.has('PMOD')) {
-    lines.push('.model PMOD pmos(VTO=-1 KP=2e-4)');
+  if (models.has('MPMOS')) {
+    lines.push('.model MPMOS PMOS(VTO=-2 KP=0.1)');
+  }
+  if (models.has('DFAST')) {
+    lines.push('.model DFAST D(IS=1e-14 RS=0.1)');
   }
 
   lines.push('.tran 1u 5m', '.end');

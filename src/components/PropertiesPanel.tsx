@@ -7,6 +7,7 @@ import { generateNetlist } from '../simulation/netlistGenerator';
 const PARAM_LABELS: Record<string, string> = {
   resistance: 'Resistance (Ω)',
   capacitance: 'Capacitance (F)',
+  inductance: 'Inductance (H)',
   voltage: 'Voltage (V)',
 };
 
