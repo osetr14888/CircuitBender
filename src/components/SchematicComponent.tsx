@@ -143,27 +143,38 @@ function SymbolPrimitives({ kind }: { kind: ComponentKind }) {
     case 'pnp':
       return (
         <>
-          <Path data="M -40,0 L 0,0" stroke={SYMBOL_STROKE} strokeWidth={2} />
-          <Path data="M 0,-10 L 20,-30" stroke={SYMBOL_STROKE} strokeWidth={2} />
-          <Path data="M 0,10 L 20,30" stroke={SYMBOL_STROKE} strokeWidth={2} />
           <Circle
             x={0}
             y={0}
-            radius={15}
+            radius={20}
             fill={SYMBOL_FILL}
             stroke={SYMBOL_STROKE}
             strokeWidth={2}
           />
-          <Path data="M 0,-10 L 0,10" stroke={SYMBOL_STROKE} strokeWidth={2} />
+          <Path data="M -40,0 L -5,0" stroke={SYMBOL_STROKE} strokeWidth={2} />
+          <Path data="M -5,-10 L -5,10" stroke={SYMBOL_STROKE} strokeWidth={2} />
+          <Path
+            data="M -5,-5 L 15,-15 L 15,-30"
+            stroke={SYMBOL_STROKE}
+            strokeWidth={2}
+            lineJoin="round"
+          />
+          <Path
+            data="M -5,5 L 15,15 L 15,30"
+            stroke={SYMBOL_STROKE}
+            strokeWidth={2}
+            lineJoin="round"
+          />
           <Path
             data={
               kind === 'npn'
-                ? 'M 1,21 L 16,26 M 11,11 L 16,26'
-                : 'M 9,29 L 4,14 M 19,19 L 4,14'
+                ? 'M 5,5 L 9,12 L 1,13'
+                : 'M 11,8 L 3,9 L 7,16'
             }
             stroke={SYMBOL_STROKE}
             strokeWidth={2}
             lineCap="round"
+            lineJoin="round"
           />
         </>
       );
@@ -171,39 +182,34 @@ function SymbolPrimitives({ kind }: { kind: ComponentKind }) {
     case 'pmos':
       return (
         <>
-          <Path data="M -40,0 L -10,0" stroke={SYMBOL_STROKE} strokeWidth={2} />
-          {kind === 'pmos' && (
-            <Circle
-              x={-13}
-              y={0}
-              radius={3}
-              fill={SYMBOL_FILL}
-              stroke={SYMBOL_STROKE}
-              strokeWidth={2}
-            />
-          )}
-          <Path data="M -10,-14 L -10,14" stroke={SYMBOL_STROKE} strokeWidth={2} />
+          <Circle
+            x={0}
+            y={0}
+            radius={20}
+            fill={SYMBOL_FILL}
+            stroke={SYMBOL_STROKE}
+            strokeWidth={2}
+          />
+          <Path data="M -40,0 L -8,0" stroke={SYMBOL_STROKE} strokeWidth={2} />
+          <Path data="M -8,-14 L -8,14" stroke={SYMBOL_STROKE} strokeWidth={2} />
           <Path
-            data="M -10,-14 L 10,-14 M -10,14 L 10,14"
+            data="M 0,-14 L 0,-6 M 0,-4 L 0,4 M 0,6 L 0,14"
             stroke={SYMBOL_STROKE}
             strokeWidth={2}
           />
           <Path data="M 0,-14 L 0,-40" stroke={SYMBOL_STROKE} strokeWidth={2} />
           <Path data="M 0,14 L 0,40" stroke={SYMBOL_STROKE} strokeWidth={2} />
-          <Path
-            data="M 10,-14 L 10,-4 M 10,4 L 10,14"
-            stroke={SYMBOL_STROKE}
-            strokeWidth={2}
-          />
+          <Path data="M 0,0 L 10,0" stroke={SYMBOL_STROKE} strokeWidth={2} />
           <Path
             data={
               kind === 'nmos'
-                ? 'M 18,-6 L 10,0 M 18,6 L 10,0'
-                : 'M 10,-6 L 18,0 M 10,6 L 18,0'
+                ? 'M 10,-5 L 4,0 L 10,5'
+                : 'M 4,-5 L 10,0 L 4,5'
             }
             stroke={SYMBOL_STROKE}
             strokeWidth={2}
             lineCap="round"
+            lineJoin="round"
           />
         </>
       );

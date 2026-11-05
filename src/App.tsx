@@ -220,7 +220,6 @@ function Canvas() {
                 <Line
                   key={net.id}
                   points={manhattanWirePoints(from, to)}
-                  bezier
                   stroke={selected ? '#ff5252' : '#4fc3f7'}
                   strokeWidth={selected ? 3 : 2}
                   hitStrokeWidth={12}
@@ -241,7 +240,6 @@ function Canvas() {
                   x: pointer?.x ?? previewFrom.x,
                   y: pointer?.y ?? previewFrom.y,
                 })}
-                bezier
                 stroke="#ffd740"
                 strokeWidth={2}
                 dash={[6, 4]}
