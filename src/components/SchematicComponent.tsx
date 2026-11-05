@@ -2,6 +2,7 @@ import { Circle, Group, Path, Rect, Text } from 'react-konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
 import type {
   ComponentKind,
+  ParamValue,
   PinIndex,
   SchematicComponent as ComponentData,
 } from '../types/schematic';
@@ -38,16 +39,21 @@ function formatSiValue(value: number, unit: string): string {
   return `${value} ${unit}`;
 }
 
-function formatValue(kind: ComponentKind, params: Record<string, number>): string {
+function numericParam(params: Record<string, ParamValue>, key: string): number {
+  const value = params[key];
+  return typeof value === 'number' ? value : 0;
+}
+
+function formatValue(kind: ComponentKind, params: Record<string, ParamValue>): string {
   switch (kind) {
     case 'resistor':
-      return formatSiValue(params.resistance ?? 0, 'Ω');
+      return formatSiValue(numericParam(params, 'resistance'), 'Ω');
     case 'capacitor':
-      return formatSiValue(params.capacitance ?? 0, 'F');
+      return formatSiValue(numericParam(params, 'capacitance'), 'F');
     case 'inductor':
-      return formatSiValue(params.inductance ?? 0, 'H');
+      return formatSiValue(numericParam(params, 'inductance'), 'H');
     case 'vsource':
-      return `${params.voltage ?? 0} V`;
+      return `${numericParam(params, 'voltage')} V`;
     case 'ground':
       return 'GND';
     case 'diode':

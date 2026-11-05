@@ -56,6 +56,20 @@ function asciiOnly(value: string): string {
   return value.replace(/[^\x20-\x7e]/g, '').replace(/[\r\n]+/g, ' ').trim();
 }
 
+function numericParam(component: SchematicComponent, key: string, fallback: number): number {
+  const value = component.params[key];
+  return typeof value === 'number' && Number.isFinite(value) ? value : fallback;
+}
+
+function modelNameParam(component: SchematicComponent, fallback: string): string {
+  const value = component.params.model;
+  if (typeof value !== 'string') {
+    return fallback;
+  }
+  const safe = asciiOnly(value).replace(/[^a-zA-Z0-9_]/g, '');
+  return safe.length > 0 ? safe : fallback;
+}
+
 function spiceDeviceName(component: SchematicComponent): string {
   return component.id.replace(/[^a-zA-Z0-9]/g, '');
 }
@@ -156,7 +170,13 @@ export function generateNetlist(project: SchematicProject): NetlistAnalysis {
 
   const safeName = asciiOnly(project.name);
   const lines = [safeName.length > 0 ? `* CircuitBender - ${safeName}` : '* CircuitBender'];
-  const models = new Set<string>();
+  const modelCards = new Map<string, string>();
+  const addModel = (name: string, card: string): void => {
+    const key = name.toUpperCase();
+    if (!modelCards.has(key)) {
+      modelCards.set(key, card);
+    }
+  };
   for (const component of devices) {
     const node1 = nodeForPin({ componentId: component.id, index: 0 });
     const node2 = nodeForPin({ componentId: component.id, index: 1 });
@@ -165,61 +185,65 @@ export function generateNetlist(project: SchematicProject): NetlistAnalysis {
     switch (component.kind) {
       case 'resistor':
         lines.push(
-          `R${name} ${node1} ${node2} ${formatSpiceNumber(component.params.resistance ?? 1000)}`,
+          `R${name} ${node1} ${node2} ${formatSpiceNumber(numericParam(component, 'resistance', 1000))}`,
         );
         break;
       case 'capacitor':
         lines.push(
-          `C${name} ${node1} ${node2} ${formatSpiceNumber(component.params.capacitance ?? 1e-7)}`,
+          `C${name} ${node1} ${node2} ${formatSpiceNumber(numericParam(component, 'capacitance', 1e-7))}`,
         );
         break;
       case 'inductor':
         lines.push(
-          `L${name} ${node1} ${node2} ${formatSpiceNumber(component.params.inductance ?? 1e-3)}`,
+          `L${name} ${node1} ${node2} ${formatSpiceNumber(numericParam(component, 'inductance', 1e-3))}`,
         );
         break;
       case 'vsource': {
-        const amplitude = formatSpiceNumber(component.params.voltage ?? 5);
+        const amplitude = formatSpiceNumber(numericParam(component, 'voltage', 5));
         lines.push(`V${name} ${node1} ${node2} PULSE(0 ${amplitude} 0 1n 1n 1m 2m)`);
         break;
       }
-      case 'diode':
-        models.add('DFAST');
-        lines.push(`D${name} ${node1} ${node2} DFAST`);
+      case 'diode': {
+        const modelName = modelNameParam(component, 'DFAST');
+        addModel(modelName, `.model ${modelName} D(IS=1e-14 RS=0.1)`);
+        lines.push(`D${name} ${node1} ${node2} ${modelName}`);
         break;
-      case 'npn':
-        models.add('QNPN');
-        lines.push(`Q${name} ${node1} ${node2} ${node3} QNPN`);
+      }
+      case 'npn': {
+        const modelName = `QNPN_${name}`;
+        const beta = formatSpiceNumber(numericParam(component, 'beta', 100));
+        addModel(modelName, `.model ${modelName} NPN(BF=${beta})`);
+        lines.push(`Q${name} ${node1} ${node2} ${node3} ${modelName}`);
         break;
-      case 'pnp':
-        models.add('QPNP');
-        lines.push(`Q${name} ${node1} ${node2} ${node3} QPNP`);
+      }
+      case 'pnp': {
+        const modelName = `QPNP_${name}`;
+        const beta = formatSpiceNumber(numericParam(component, 'beta', 100));
+        addModel(modelName, `.model ${modelName} PNP(BF=${beta})`);
+        lines.push(`Q${name} ${node1} ${node2} ${node3} ${modelName}`);
         break;
-      case 'nmos':
-        models.add('MNMOS');
-        lines.push(`M${name} ${node1} ${node2} ${node3} ${node3} MNMOS`);
+      }
+      case 'nmos': {
+        const modelName = `MNMOS_${name}`;
+        const vto = formatSpiceNumber(numericParam(component, 'vto', 2));
+        const kp = formatSpiceNumber(numericParam(component, 'kp', 0.1));
+        addModel(modelName, `.model ${modelName} NMOS(VTO=${vto} KP=${kp})`);
+        lines.push(`M${name} ${node1} ${node2} ${node3} ${node3} ${modelName}`);
         break;
-      case 'pmos':
-        models.add('MPMOS');
-        lines.push(`M${name} ${node1} ${node2} ${node3} ${node3} MPMOS`);
+      }
+      case 'pmos': {
+        const modelName = `MPMOS_${name}`;
+        const vto = formatSpiceNumber(numericParam(component, 'vto', -2));
+        const kp = formatSpiceNumber(numericParam(component, 'kp', 0.1));
+        addModel(modelName, `.model ${modelName} PMOS(VTO=${vto} KP=${kp})`);
+        lines.push(`M${name} ${node1} ${node2} ${node3} ${node3} ${modelName}`);
         break;
+      }
     }
   }
 
-  if (models.has('QNPN')) {
-    lines.push('.model QNPN NPN(BF=100)');
-  }
-  if (models.has('QPNP')) {
-    lines.push('.model QPNP PNP(BF=100)');
-  }
-  if (models.has('MNMOS')) {
-    lines.push('.model MNMOS NMOS(VTO=2 KP=0.1)');
-  }
-  if (models.has('MPMOS')) {
-    lines.push('.model MPMOS PMOS(VTO=-2 KP=0.1)');
-  }
-  if (models.has('DFAST')) {
-    lines.push('.model DFAST D(IS=1e-14 RS=0.1)');
+  for (const card of modelCards.values()) {
+    lines.push(card);
   }
 
   lines.push('.tran 1u 5m', '.end');

@@ -1,19 +1,20 @@
 import { create } from 'zustand';
 import type {
   ComponentKind,
+  ParamValue,
   PinRef,
   SchematicComponent,
   SchematicNet,
   SchematicProject,
 } from '../types/schematic';
 
-const DEFAULT_PARAMS: Record<ComponentKind, Record<string, number>> = {
+const DEFAULT_PARAMS: Record<ComponentKind, Record<string, ParamValue>> = {
   resistor: { resistance: 1000 },
   capacitor: { capacitance: 1e-6 },
   inductor: { inductance: 1e-3 },
   vsource: { voltage: 5 },
   ground: {},
-  diode: {},
+  diode: { model: 'DFAST' },
   npn: { beta: 100 },
   pnp: { beta: 100 },
   nmos: { vto: 2, kp: 0.1 },
@@ -72,7 +73,7 @@ interface AppState {
   isProjectLoading: boolean;
   addComponent: (kind: ComponentKind, x: number, y: number) => void;
   updateComponentPosition: (id: string, x: number, y: number) => void;
-  updateComponentParam: (id: string, key: string, value: number) => void;
+  updateComponentParam: (id: string, key: string, value: ParamValue) => void;
   addNet: (pin1: PinRef, pin2: PinRef) => void;
   reconnectNet: (netId: string, end: 0 | 1, pin: PinRef) => void;
   select: (id: string | null) => void;

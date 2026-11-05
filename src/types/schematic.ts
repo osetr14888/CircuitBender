@@ -10,6 +10,8 @@ export type ComponentKind =
   | 'nmos'
   | 'pmos';
 
+export type ParamValue = number | string;
+
 export type PinIndex = 0 | 1 | 2;
 
 export interface PinRef {
@@ -23,7 +25,7 @@ export interface SchematicComponent {
   x: number;
   y: number;
   rotation: 0 | 90 | 180 | 270;
-  params: Record<string, number>;
+  params: Record<string, ParamValue>;
 }
 
 export interface SchematicNet {

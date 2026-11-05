@@ -77,6 +77,13 @@ const PARAM_SLIDERS: Record<string, ParamSliderConfig> = {
     logarithmic: true,
     format: (value) => formatSi(value, 'F'),
   },
+  inductance: {
+    label: 'Inductance',
+    min: 1e-6,
+    max: 1,
+    logarithmic: true,
+    format: (value) => formatSi(value, 'H'),
+  },
   voltage: {
     label: 'Voltage',
     min: 0.1,
@@ -342,7 +349,10 @@ export function CalibrationPanel({
 
   const tunableParams = components.flatMap((component) =>
     Object.entries(component.params)
-      .filter(([name]) => PARAM_SLIDERS[name] !== undefined)
+      .filter(
+        (entry): entry is [string, number] =>
+          typeof entry[1] === 'number' && PARAM_SLIDERS[entry[0]] !== undefined,
+      )
       .map(([name, value]) => ({
         componentId: component.id,
         kindLabel: KIND_LABELS[component.kind],
@@ -445,7 +455,7 @@ export function CalibrationPanel({
         <h3 className="calibration-controls-heading">Tuning</h3>
         {tunableParams.length === 0 ? (
           <p className="calibration-hint">
-            Add a resistor, capacitor or voltage source to the schematic to tune it here.
+            Add a resistor, capacitor, inductor or voltage source to the schematic to tune it here.
           </p>
         ) : (
           tunableParams.map(({ componentId, kindLabel, name, value, config }) => (

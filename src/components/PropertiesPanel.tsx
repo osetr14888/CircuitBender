@@ -10,11 +10,21 @@ interface ParamUnit {
   scale: number;
 }
 
-interface ParamField {
+interface NumericParamField {
   key: string;
   label: string;
+  type: 'number';
   units: ParamUnit[];
 }
+
+interface TextParamField {
+  key: string;
+  label: string;
+  type: 'text';
+  placeholder?: string;
+}
+
+type ParamField = NumericParamField | TextParamField;
 
 const VOLT: ParamUnit = { label: 'V', scale: 1 };
 const AMPERE_PER_VOLT_SQUARED: ParamUnit = { label: 'A/V²', scale: 1 };
@@ -25,6 +35,7 @@ const PARAM_FIELDS: Record<ComponentKind, ParamField[]> = {
     {
       key: 'resistance',
       label: 'Resistance',
+      type: 'number',
       units: [
         { label: 'Ω', scale: 1 },
         { label: 'kΩ', scale: 1e3 },
@@ -35,6 +46,7 @@ const PARAM_FIELDS: Record<ComponentKind, ParamField[]> = {
     {
       key: 'capacitance',
       label: 'Capacitance',
+      type: 'number',
       units: [
         { label: 'F', scale: 1 },
         { label: 'µF', scale: 1e-6 },
@@ -45,24 +57,35 @@ const PARAM_FIELDS: Record<ComponentKind, ParamField[]> = {
     {
       key: 'inductance',
       label: 'Inductance',
+      type: 'number',
       units: [
         { label: 'H', scale: 1 },
         { label: 'mH', scale: 1e-3 },
       ],
     },
   ],
-  vsource: [{ key: 'voltage', label: 'Voltage', units: [VOLT] }],
+  vsource: [{ key: 'voltage', label: 'Voltage', type: 'number', units: [VOLT] }],
   ground: [],
-  diode: [],
-  npn: [{ key: 'beta', label: 'Beta (hFE)', units: UNITLESS }],
-  pnp: [{ key: 'beta', label: 'Beta (hFE)', units: UNITLESS }],
+  diode: [{ key: 'model', label: 'Model', type: 'text', placeholder: 'DFAST' }],
+  npn: [{ key: 'beta', label: 'Beta (hFE)', type: 'number', units: UNITLESS }],
+  pnp: [{ key: 'beta', label: 'Beta (hFE)', type: 'number', units: UNITLESS }],
   nmos: [
-    { key: 'vto', label: 'Threshold voltage (VTO)', units: [VOLT] },
-    { key: 'kp', label: 'Transconductance (KP)', units: [AMPERE_PER_VOLT_SQUARED] },
+    { key: 'vto', label: 'Threshold voltage (VTO)', type: 'number', units: [VOLT] },
+    {
+      key: 'kp',
+      label: 'Transconductance (KP)',
+      type: 'number',
+      units: [AMPERE_PER_VOLT_SQUARED],
+    },
   ],
   pmos: [
-    { key: 'vto', label: 'Threshold voltage (VTO)', units: [VOLT] },
-    { key: 'kp', label: 'Transconductance (KP)', units: [AMPERE_PER_VOLT_SQUARED] },
+    { key: 'vto', label: 'Threshold voltage (VTO)', type: 'number', units: [VOLT] },
+    {
+      key: 'kp',
+      label: 'Transconductance (KP)',
+      type: 'number',
+      units: [AMPERE_PER_VOLT_SQUARED],
+    },
   ],
 };
 
@@ -76,7 +99,7 @@ const UNIT_SELECT_STYLE = {
   fontSize: 12,
 };
 
-function pickUnitIndex(field: ParamField, value: number): number {
+function pickUnitIndex(field: NumericParamField, value: number): number {
   const magnitude = Math.abs(value);
   const index = field.units.findIndex((unit) => {
     const scaled = magnitude / unit.scale;
@@ -98,7 +121,7 @@ function ParamFieldControl({
   value,
   onChange,
 }: {
-  field: ParamField;
+  field: NumericParamField;
   value: number;
   onChange: (value: number) => void;
 }) {
@@ -138,6 +161,30 @@ function ParamFieldControl({
           unit.label.length > 0 && <span className="props-param-label">{unit.label}</span>
         )}
       </span>
+    </label>
+  );
+}
+
+function TextParamControl({
+  field,
+  value,
+  onChange,
+}: {
+  field: TextParamField;
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  return (
+    <label className="props-param">
+      <span className="props-param-label">{field.label}</span>
+      <input
+        type="text"
+        className="props-param-input"
+        value={value}
+        placeholder={field.placeholder}
+        spellCheck={false}
+        onChange={(event) => onChange(event.currentTarget.value)}
+      />
     </label>
   );
 }
@@ -247,14 +294,27 @@ export function PropertiesPanel() {
         <p className="props-empty">No parameters</p>
       ) : (
         <div className="props-params" key={selected.id}>
-          {fields.map((field) => (
-            <ParamFieldControl
-              key={field.key}
-              field={field}
-              value={selected.params[field.key] ?? 0}
-              onChange={(value) => updateComponentParam(selected.id, field.key, value)}
-            />
-          ))}
+          {fields.map((field) => {
+            const value = selected.params[field.key];
+            if (field.type === 'text') {
+              return (
+                <TextParamControl
+                  key={field.key}
+                  field={field}
+                  value={typeof value === 'string' ? value : ''}
+                  onChange={(next) => updateComponentParam(selected.id, field.key, next)}
+                />
+              );
+            }
+            return (
+              <ParamFieldControl
+                key={field.key}
+                field={field}
+                value={typeof value === 'number' ? value : 0}
+                onChange={(next) => updateComponentParam(selected.id, field.key, next)}
+              />
+            );
+          })}
         </div>
       )}
       <NetlistDebug />
