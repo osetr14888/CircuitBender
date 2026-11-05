@@ -14,10 +14,10 @@ const DEFAULT_PARAMS: Record<ComponentKind, Record<string, number>> = {
   vsource: { voltage: 5 },
   ground: {},
   diode: {},
-  npn: {},
-  pnp: {},
-  nmos: {},
-  pmos: {},
+  npn: { beta: 100 },
+  pnp: { beta: 100 },
+  nmos: { vto: 2, kp: 0.1 },
+  pmos: { vto: -2, kp: 0.1 },
 };
 
 const initialProject: SchematicProject = {
@@ -74,6 +74,7 @@ interface AppState {
   updateComponentPosition: (id: string, x: number, y: number) => void;
   updateComponentParam: (id: string, key: string, value: number) => void;
   addNet: (pin1: PinRef, pin2: PinRef) => void;
+  reconnectNet: (netId: string, end: 0 | 1, pin: PinRef) => void;
   select: (id: string | null) => void;
   selectNet: (id: string | null) => void;
   removeComponent: (id: string) => void;
@@ -128,6 +129,35 @@ export const useAppStore = create<AppState>()((set) => ({
       const net: SchematicNet = { id: `net-${nextNetNumber}`, pins: [pin1, pin2] };
       return {
         project: { ...state.project, nets: [...state.project.nets, net] },
+      };
+    }),
+  reconnectNet: (netId, end, pin) =>
+    set((state) => {
+      const net = state.project.nets.find((item) => item.id === netId);
+      if (net === undefined) {
+        return state;
+      }
+      const otherPin = net.pins[end === 0 ? 1 : 0];
+      const duplicate = state.project.nets.some(
+        (item) => item.id !== netId && netConnects(item, pin, otherPin),
+      );
+      if (duplicate || samePin(otherPin, pin)) {
+        return {
+          project: {
+            ...state.project,
+            nets: state.project.nets.filter((item) => item.id !== netId),
+          },
+          selectedNetId: state.selectedNetId === netId ? null : state.selectedNetId,
+        };
+      }
+      const pins: [PinRef, PinRef] = end === 0 ? [pin, otherPin] : [otherPin, pin];
+      return {
+        project: {
+          ...state.project,
+          nets: state.project.nets.map((item) =>
+            item.id === netId ? { ...item, pins } : item,
+          ),
+        },
       };
     }),
   select: (id) => set({ selectedId: id, selectedNetId: null }),

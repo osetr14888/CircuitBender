@@ -1,15 +1,146 @@
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { Trash2 } from 'lucide-react';
 import { useAppStore } from '../store/appStore';
 import { KIND_LABELS } from './componentCatalog';
 import { generateNetlist } from '../simulation/netlistGenerator';
+import type { ComponentKind } from '../types/schematic';
 
-const PARAM_LABELS: Record<string, string> = {
-  resistance: 'Resistance (Ω)',
-  capacitance: 'Capacitance (F)',
-  inductance: 'Inductance (H)',
-  voltage: 'Voltage (V)',
+interface ParamUnit {
+  label: string;
+  scale: number;
+}
+
+interface ParamField {
+  key: string;
+  label: string;
+  units: ParamUnit[];
+}
+
+const VOLT: ParamUnit = { label: 'V', scale: 1 };
+const AMPERE_PER_VOLT_SQUARED: ParamUnit = { label: 'A/V²', scale: 1 };
+const UNITLESS: ParamUnit[] = [{ label: '', scale: 1 }];
+
+const PARAM_FIELDS: Record<ComponentKind, ParamField[]> = {
+  resistor: [
+    {
+      key: 'resistance',
+      label: 'Resistance',
+      units: [
+        { label: 'Ω', scale: 1 },
+        { label: 'kΩ', scale: 1e3 },
+      ],
+    },
+  ],
+  capacitor: [
+    {
+      key: 'capacitance',
+      label: 'Capacitance',
+      units: [
+        { label: 'F', scale: 1 },
+        { label: 'µF', scale: 1e-6 },
+      ],
+    },
+  ],
+  inductor: [
+    {
+      key: 'inductance',
+      label: 'Inductance',
+      units: [
+        { label: 'H', scale: 1 },
+        { label: 'mH', scale: 1e-3 },
+      ],
+    },
+  ],
+  vsource: [{ key: 'voltage', label: 'Voltage', units: [VOLT] }],
+  ground: [],
+  diode: [],
+  npn: [{ key: 'beta', label: 'Beta (hFE)', units: UNITLESS }],
+  pnp: [{ key: 'beta', label: 'Beta (hFE)', units: UNITLESS }],
+  nmos: [
+    { key: 'vto', label: 'Threshold voltage (VTO)', units: [VOLT] },
+    { key: 'kp', label: 'Transconductance (KP)', units: [AMPERE_PER_VOLT_SQUARED] },
+  ],
+  pmos: [
+    { key: 'vto', label: 'Threshold voltage (VTO)', units: [VOLT] },
+    { key: 'kp', label: 'Transconductance (KP)', units: [AMPERE_PER_VOLT_SQUARED] },
+  ],
 };
+
+const UNIT_SELECT_STYLE = {
+  padding: '4px 6px',
+  border: '1px solid #3a3a3a',
+  borderRadius: 4,
+  background: '#262626',
+  color: '#e0e0e0',
+  fontFamily: 'inherit',
+  fontSize: 12,
+};
+
+function pickUnitIndex(field: ParamField, value: number): number {
+  const magnitude = Math.abs(value);
+  const index = field.units.findIndex((unit) => {
+    const scaled = magnitude / unit.scale;
+    return scaled >= 1 && scaled < 1000;
+  });
+  return index === -1 ? 0 : index;
+}
+
+function formatScaledValue(value: number, scale: number): string {
+  const scaled = value / scale;
+  if (!Number.isFinite(scaled)) {
+    return '0';
+  }
+  return String(Number(scaled.toPrecision(6)));
+}
+
+function ParamFieldControl({
+  field,
+  value,
+  onChange,
+}: {
+  field: ParamField;
+  value: number;
+  onChange: (value: number) => void;
+}) {
+  const [unitIndex, setUnitIndex] = useState(() => pickUnitIndex(field, value));
+  const unit = field.units[unitIndex] ?? field.units[0];
+
+  return (
+    <label className="props-param">
+      <span className="props-param-label">{field.label}</span>
+      <span style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+        <input
+          key={unitIndex}
+          type="number"
+          step="any"
+          className="props-param-input"
+          defaultValue={formatScaledValue(value, unit.scale)}
+          onChange={(event) => {
+            const next = event.currentTarget.valueAsNumber;
+            if (!Number.isNaN(next)) {
+              onChange(next * unit.scale);
+            }
+          }}
+        />
+        {field.units.length > 1 ? (
+          <select
+            value={unitIndex}
+            style={UNIT_SELECT_STYLE}
+            onChange={(event) => setUnitIndex(Number(event.currentTarget.value))}
+          >
+            {field.units.map((option, index) => (
+              <option key={option.label} value={index}>
+                {option.label}
+              </option>
+            ))}
+          </select>
+        ) : (
+          unit.label.length > 0 && <span className="props-param-label">{unit.label}</span>
+        )}
+      </span>
+    </label>
+  );
+}
 
 function NetlistDebug() {
   const project = useAppStore((state) => state.project);
@@ -29,10 +160,50 @@ export function PropertiesPanel() {
   const selected = useAppStore((state) =>
     state.project.components.find((component) => component.id === selectedId),
   );
+  const selectedNet = useAppStore((state) =>
+    state.project.nets.find((net) => net.id === state.selectedNetId),
+  );
   const updateComponentParam = useAppStore((state) => state.updateComponentParam);
   const removeComponent = useAppStore((state) => state.removeComponent);
+  const removeNet = useAppStore((state) => state.removeNet);
 
   if (selected === undefined) {
+    if (selectedNet !== undefined) {
+      return (
+        <aside className="panel panel-right">
+          <div className="props-header">
+            <h2>Properties</h2>
+            <button
+              type="button"
+              className="props-delete-button"
+              title="Delete wire (Delete)"
+              aria-label="Delete selected wire"
+              onClick={() => removeNet(selectedNet.id)}
+            >
+              <Trash2 size={15} aria-hidden="true" />
+              Delete
+            </button>
+          </div>
+          <dl className="props">
+            <dt>kind</dt>
+            <dd>Wire</dd>
+            <dt>id</dt>
+            <dd>{selectedNet.id}</dd>
+            <dt>from</dt>
+            <dd>
+              {selectedNet.pins[0].componentId} pin {selectedNet.pins[0].index}
+            </dd>
+            <dt>to</dt>
+            <dd>
+              {selectedNet.pins[1].componentId} pin {selectedNet.pins[1].index}
+            </dd>
+          </dl>
+          <p className="props-empty">Press Delete to remove wire</p>
+          <NetlistDebug />
+        </aside>
+      );
+    }
+
     return (
       <aside className="panel panel-right">
         <h2>Properties</h2>
@@ -41,6 +212,8 @@ export function PropertiesPanel() {
       </aside>
     );
   }
+
+  const fields = PARAM_FIELDS[selected.kind];
 
   return (
     <aside className="panel panel-right">
@@ -70,26 +243,17 @@ export function PropertiesPanel() {
         <dd>{selected.rotation}°</dd>
       </dl>
       <h3 className="props-params-heading">Parameters</h3>
-      {Object.keys(selected.params).length === 0 ? (
+      {fields.length === 0 ? (
         <p className="props-empty">No parameters</p>
       ) : (
-        <div className="props-params">
-          {Object.entries(selected.params).map(([name, value]) => (
-            <label key={name} className="props-param">
-              <span className="props-param-label">{PARAM_LABELS[name] ?? name}</span>
-              <input
-                type="number"
-                step="any"
-                className="props-param-input"
-                value={value}
-                onChange={(event) => {
-                  const next = event.currentTarget.valueAsNumber;
-                  if (!Number.isNaN(next)) {
-                    updateComponentParam(selected.id, name, next);
-                  }
-                }}
-              />
-            </label>
+        <div className="props-params" key={selected.id}>
+          {fields.map((field) => (
+            <ParamFieldControl
+              key={field.key}
+              field={field}
+              value={selected.params[field.key] ?? 0}
+              onChange={(value) => updateComponentParam(selected.id, field.key, value)}
+            />
           ))}
         </div>
       )}

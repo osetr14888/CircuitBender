@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import type { DragEvent } from 'react';
-import { Line, Layer, Stage } from 'react-konva';
+import { Circle, Group, Line, Layer, Stage } from 'react-konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
 import { CircuitBoard, Loader2, Play, Square, Volume2, VolumeX, X } from 'lucide-react';
 import { useAppStore } from './store/appStore';
@@ -16,7 +16,7 @@ import { SchematicComponentView } from './components/SchematicComponent';
 import { Sidebar } from './components/Sidebar';
 import { COMPONENT_DRAG_TYPE, isComponentKind } from './components/componentCatalog';
 import { PropertiesPanel } from './components/PropertiesPanel';
-import { GRID_SIZE, manhattanWirePoints, pinPosition, snapToGrid } from './components/schematicGeometry';
+import { GRID_SIZE, manhattanWirePoints, pinIndexes, pinPosition, snapToGrid } from './components/schematicGeometry';
 import { SpiceClient, type SpiceSimulationResult } from './simulation/spiceClient';
 import { generateNetlist } from './simulation/netlistGenerator';
 import { AudioEngine } from './audio/audioEngine';
@@ -24,6 +24,73 @@ import { resampleToAudio } from './audio/resample';
 
 const MIN_STAGE_WIDTH = 320;
 const MIN_STAGE_HEIGHT = 240;
+const WIRE_PICK_DISTANCE = 10;
+const WIRE_DRAG_THRESHOLD = 4;
+const WIRE_HANDLE_RADIUS = 5;
+const WIRE_HANDLE_HIT_RADIUS = 10;
+
+interface Point {
+  x: number;
+  y: number;
+}
+
+type NetEnd = 0 | 1;
+
+interface WireEndpoint {
+  netId: string;
+  end: NetEnd;
+  pin: PinRef;
+  point: Point;
+}
+
+interface PinPoint {
+  pin: PinRef;
+  point: Point;
+}
+
+interface WireDragState {
+  netId: string;
+  end: NetEnd;
+  fixed: Point;
+  pointer: Point;
+}
+
+interface PendingWireState {
+  endpoint: WireEndpoint;
+  fixed: Point;
+  start: Point;
+  pointer: Point;
+}
+
+function nearestEndpoint(
+  endpoints: WireEndpoint[],
+  point: Point,
+  maxDistance: number,
+): WireEndpoint | null {
+  let nearest: WireEndpoint | null = null;
+  let nearestDistance = maxDistance;
+  for (const endpoint of endpoints) {
+    const distance = Math.hypot(endpoint.point.x - point.x, endpoint.point.y - point.y);
+    if (distance <= nearestDistance) {
+      nearest = endpoint;
+      nearestDistance = distance;
+    }
+  }
+  return nearest;
+}
+
+function nearestPin(pins: PinPoint[], point: Point, maxDistance: number): PinPoint | null {
+  let nearest: PinPoint | null = null;
+  let nearestDistance = maxDistance;
+  for (const pin of pins) {
+    const distance = Math.hypot(pin.point.x - point.x, pin.point.y - point.y);
+    if (distance <= nearestDistance) {
+      nearest = pin;
+      nearestDistance = distance;
+    }
+  }
+  return nearest;
+}
 
 function Grid({ width, height }: { width: number; height: number }) {
   const lines = useMemo(() => {
@@ -60,6 +127,7 @@ function Canvas() {
   const addComponent = useAppStore((state) => state.addComponent);
   const updateComponentPosition = useAppStore((state) => state.updateComponentPosition);
   const addNet = useAppStore((state) => state.addNet);
+  const reconnectNet = useAppStore((state) => state.reconnectNet);
   const select = useAppStore((state) => state.select);
   const selectNet = useAppStore((state) => state.selectNet);
   const removeComponent = useAppStore((state) => state.removeComponent);
@@ -70,11 +138,54 @@ function Canvas() {
   const [stageSize, setStageSize] = useState({ width: 800, height: 600 });
   const [activePin, setActivePin] = useState<PinRef | null>(null);
   const [pointer, setPointer] = useState<{ x: number; y: number } | null>(null);
+  const [hoveredWireEnd, setHoveredWireEnd] = useState<{
+    netId: string;
+    end: NetEnd;
+  } | null>(null);
+  const [wireDrag, setWireDrag] = useState<WireDragState | null>(null);
+  const [pendingWire, setPendingWire] = useState<PendingWireState | null>(null);
 
   const componentMap = useMemo(
     () => new Map(components.map((component) => [component.id, component])),
     [components],
   );
+
+  const wireEndpoints = useMemo<WireEndpoint[]>(() => {
+    const endpoints: WireEndpoint[] = [];
+    for (const net of nets) {
+      const fromComponent = componentMap.get(net.pins[0].componentId);
+      const toComponent = componentMap.get(net.pins[1].componentId);
+      if (fromComponent === undefined || toComponent === undefined) {
+        continue;
+      }
+      endpoints.push({
+        netId: net.id,
+        end: 0,
+        pin: net.pins[0],
+        point: pinPosition(fromComponent, net.pins[0].index),
+      });
+      endpoints.push({
+        netId: net.id,
+        end: 1,
+        pin: net.pins[1],
+        point: pinPosition(toComponent, net.pins[1].index),
+      });
+    }
+    return endpoints;
+  }, [nets, componentMap]);
+
+  const allPins = useMemo<PinPoint[]>(() => {
+    const pins: PinPoint[] = [];
+    for (const component of components) {
+      for (const index of pinIndexes(component.kind)) {
+        pins.push({
+          pin: { componentId: component.id, index },
+          point: pinPosition(component, index),
+        });
+      }
+    }
+    return pins;
+  }, [components]);
 
   useEffect(() => {
     const container = containerRef.current;
@@ -130,18 +241,130 @@ function Canvas() {
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [selectedId, selectedNetId, removeComponent, removeNet]);
 
+  useEffect(() => {
+    if (wireDrag === null && pendingWire === null) return;
+    const blockClick = (event: MouseEvent) => {
+      event.stopPropagation();
+      event.preventDefault();
+    };
+    const handleMouseUp = () => {
+      if (wireDrag !== null) {
+        const target = nearestPin(allPins, wireDrag.pointer, WIRE_PICK_DISTANCE);
+        if (target === null) {
+          removeNet(wireDrag.netId);
+        } else {
+          reconnectNet(wireDrag.netId, wireDrag.end, target.pin);
+        }
+      } else if (pendingWire !== null) {
+        const clicked = pendingWire.endpoint.pin;
+        setHoveredWireEnd(null);
+        if (activePin === null) {
+          setActivePin(clicked);
+        } else if (
+          activePin.componentId !== clicked.componentId ||
+          activePin.index !== clicked.index
+        ) {
+          addNet(activePin, clicked);
+          setActivePin(null);
+        } else {
+          setActivePin(null);
+        }
+      }
+      setWireDrag(null);
+      setPendingWire(null);
+      setHoveredWireEnd(null);
+      window.addEventListener('click', blockClick, true);
+      window.setTimeout(() => {
+        window.removeEventListener('click', blockClick, true);
+      }, 0);
+    };
+    window.addEventListener('mouseup', handleMouseUp);
+    window.addEventListener('touchend', handleMouseUp);
+    return () => {
+      window.removeEventListener('mouseup', handleMouseUp);
+      window.removeEventListener('touchend', handleMouseUp);
+      window.removeEventListener('click', blockClick, true);
+    };
+  }, [wireDrag, pendingWire, activePin, allPins, reconnectNet, removeNet, addNet]);
+
   const handleStageClick = (event: KonvaEventObject<MouseEvent | TouchEvent>) => {
     if (event.target === event.target.getStage()) {
       select(null);
       selectNet(null);
       setActivePin(null);
+      setHoveredWireEnd(null);
     }
   };
 
-  const handleStageMouseMove = (event: KonvaEventObject<MouseEvent>) => {
-    if (activePin === null) return;
-    const position = event.target.getStage()?.getPointerPosition();
-    setPointer(position ?? null);
+  const handleStageMouseMove = (event: KonvaEventObject<MouseEvent | TouchEvent>) => {
+    const position = event.target.getStage()?.getPointerPosition() ?? null;
+    if (activePin !== null) {
+      setPointer(position);
+      return;
+    }
+    if (position === null) return;
+    if (pendingWire !== null) {
+      const distance = Math.hypot(
+        position.x - pendingWire.start.x,
+        position.y - pendingWire.start.y,
+      );
+      if (distance >= WIRE_DRAG_THRESHOLD) {
+        selectNet(pendingWire.endpoint.netId);
+        setHoveredWireEnd(null);
+        setWireDrag({
+          netId: pendingWire.endpoint.netId,
+          end: pendingWire.endpoint.end,
+          fixed: pendingWire.fixed,
+          pointer: position,
+        });
+        setPendingWire(null);
+      }
+      return;
+    }
+    if (wireDrag !== null) {
+      setWireDrag((current) =>
+        current === null ? current : { ...current, pointer: position },
+      );
+      return;
+    }
+    const nearest = nearestEndpoint(wireEndpoints, position, WIRE_PICK_DISTANCE);
+    setHoveredWireEnd((current) => {
+      if (nearest === null) {
+        return current === null ? current : null;
+      }
+      if (
+        current !== null &&
+        current.netId === nearest.netId &&
+        current.end === nearest.end
+      ) {
+        return current;
+      }
+      return { netId: nearest.netId, end: nearest.end };
+    });
+  };
+
+  const handleStageMouseLeave = () => {
+    if (wireDrag === null && pendingWire === null) {
+      setHoveredWireEnd(null);
+    }
+  };
+
+  const startWireHandle = (
+    endpoint: WireEndpoint,
+    event: KonvaEventObject<MouseEvent | TouchEvent>,
+  ) => {
+    event.cancelBubble = true;
+    const other = wireEndpoints.find(
+      (item) => item.netId === endpoint.netId && item.end !== endpoint.end,
+    );
+    if (other === undefined) return;
+    const position = event.target.getStage()?.getPointerPosition() ?? endpoint.point;
+    setPendingWire({
+      endpoint,
+      fixed: other.point,
+      start: position,
+      pointer: position,
+    });
   };
 
   const handleDragOver = (event: DragEvent<HTMLDivElement>) => {
@@ -166,6 +389,8 @@ function Canvas() {
   };
 
   const handlePinClick = (componentId: string, index: PinIndex) => {
+    if (wireDrag !== null) return;
+    setHoveredWireEnd(null);
     const clicked: PinRef = { componentId, index };
     if (activePin === null) {
       setActivePin(clicked);
@@ -189,12 +414,58 @@ function Canvas() {
       ? pinPosition(activeComponent, activePin.index)
       : null;
 
+  const hoveredEndpoint =
+    hoveredWireEnd === null
+      ? null
+      : (wireEndpoints.find(
+          (endpoint) =>
+            endpoint.netId === hoveredWireEnd.netId &&
+            endpoint.end === hoveredWireEnd.end,
+        ) ?? null);
+
+  const grabHandles = useMemo<WireEndpoint[]>(() => {
+    if (wireDrag !== null || activePin !== null) {
+      return [];
+    }
+    const handles: WireEndpoint[] = [];
+    if (hoveredEndpoint !== null) {
+      handles.push(hoveredEndpoint);
+    }
+    if (selectedNetId !== null) {
+      for (const endpoint of wireEndpoints) {
+        if (
+          endpoint.netId === selectedNetId &&
+          !handles.some(
+            (handle) => handle.netId === endpoint.netId && handle.end === endpoint.end,
+          )
+        ) {
+          handles.push(endpoint);
+        }
+      }
+    }
+    return handles;
+  }, [wireDrag, activePin, hoveredEndpoint, selectedNetId, wireEndpoints]);
+
+  const wireDragTarget =
+    wireDrag === null ? null : nearestPin(allPins, wireDrag.pointer, WIRE_PICK_DISTANCE);
+  const wireDragPreview =
+    wireDrag === null ? null : (wireDragTarget?.point ?? wireDrag.pointer);
+
+  const cursor =
+    wireDrag !== null || pendingWire !== null
+      ? 'grabbing'
+      : activePin !== null
+        ? 'crosshair'
+        : hoveredEndpoint !== null
+          ? 'grab'
+          : 'default';
+
   return (
     <main className="canvas">
       <div
         ref={containerRef}
         className="canvas-inner"
-        style={{ cursor: activePin !== null ? 'crosshair' : 'default' }}
+        style={{ cursor }}
         onDragOver={handleDragOver}
         onDrop={handleDrop}
       >
@@ -204,10 +475,16 @@ function Canvas() {
           onClick={handleStageClick}
           onTap={handleStageClick}
           onMouseMove={handleStageMouseMove}
+          onTouchMove={handleStageMouseMove}
+          onMouseLeave={handleStageMouseLeave}
+          onTouchEnd={handleStageMouseLeave}
         >
           <Layer>
             <Grid width={stageSize.width} height={stageSize.height} />
             {nets.map((net) => {
+              if (wireDrag !== null && wireDrag.netId === net.id) {
+                return null;
+              }
               const fromComponent = componentMap.get(net.pins[0].componentId);
               const toComponent = componentMap.get(net.pins[1].componentId);
               if (fromComponent === undefined || toComponent === undefined) {
@@ -260,6 +537,45 @@ function Canvas() {
                 onDragEnd={(x, y) => updateComponentPosition(component.id, x, y)}
                 onPinClick={(index) => handlePinClick(component.id, index)}
               />
+            ))}
+          </Layer>
+          <Layer>
+            {wireDrag !== null && wireDragPreview !== null && (
+              <>
+                <Line
+                  points={manhattanWirePoints(wireDrag.fixed, wireDragPreview)}
+                  stroke="#ffd740"
+                  strokeWidth={2}
+                  dash={[6, 4]}
+                  listening={false}
+                />
+                <Circle
+                  x={wireDragPreview.x}
+                  y={wireDragPreview.y}
+                  radius={wireDragTarget !== null ? 7 : 4}
+                  fill={wireDragTarget !== null ? '#ffd740' : '#4fc3f7'}
+                  stroke="#263238"
+                  strokeWidth={1.5}
+                  listening={false}
+                />
+              </>
+            )}
+            {grabHandles.map((handle) => (
+              <Group key={`${handle.netId}-${handle.end}`} x={handle.point.x} y={handle.point.y}>
+                <Circle
+                  radius={WIRE_HANDLE_HIT_RADIUS}
+                  fill="rgba(255, 215, 64, 0.18)"
+                  onMouseDown={(event) => startWireHandle(handle, event)}
+                  onTouchStart={(event) => startWireHandle(handle, event)}
+                />
+                <Circle
+                  radius={WIRE_HANDLE_RADIUS}
+                  fill="#ffd740"
+                  stroke="#263238"
+                  strokeWidth={1.5}
+                  listening={false}
+                />
+              </Group>
             ))}
           </Layer>
         </Stage>
