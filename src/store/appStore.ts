@@ -12,6 +12,11 @@ const DEFAULT_PARAMS: Record<ComponentKind, Record<string, number>> = {
   capacitor: { capacitance: 1e-6 },
   vsource: { voltage: 5 },
   ground: {},
+  diode: {},
+  npn: {},
+  pnp: {},
+  nmos: {},
+  pmos: {},
 };
 
 const initialProject: SchematicProject = {

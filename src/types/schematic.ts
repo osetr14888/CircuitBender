@@ -1,6 +1,15 @@
-export type ComponentKind = 'resistor' | 'capacitor' | 'vsource' | 'ground';
+export type ComponentKind =
+  | 'resistor'
+  | 'capacitor'
+  | 'vsource'
+  | 'ground'
+  | 'diode'
+  | 'npn'
+  | 'pnp'
+  | 'nmos'
+  | 'pmos';
 
-export type PinIndex = 0 | 1;
+export type PinIndex = 0 | 1 | 2;
 
 export interface PinRef {
   componentId: string;

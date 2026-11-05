@@ -1,4 +1,4 @@
-import { Circle, Group, Line, Rect, Text } from 'react-konva';
+import { Circle, Group, Path, Rect, Text } from 'react-konva';
 import type { KonvaEventObject } from 'konva/lib/Node';
 import type {
   ComponentKind,
@@ -6,9 +6,10 @@ import type {
   SchematicComponent as ComponentData,
 } from '../types/schematic';
 import {
-  COMPONENT_HEIGHT,
-  COMPONENT_WIDTH,
   PIN_RADIUS,
+  componentHalfSize,
+  pinIndexes,
+  pinOffset,
   snapToGrid,
 } from './schematicGeometry';
 
@@ -47,68 +48,163 @@ function formatValue(kind: ComponentKind, params: Record<string, number>): strin
       return `${params.voltage ?? 0} V`;
     case 'ground':
       return 'GND';
+    case 'diode':
+      return 'Diode';
+    case 'npn':
+      return 'NPN';
+    case 'pnp':
+      return 'PNP';
+    case 'nmos':
+      return 'NMOS';
+    case 'pmos':
+      return 'PMOS';
   }
 }
 
 function SymbolPrimitives({ kind }: { kind: ComponentKind }) {
-  const halfW = COMPONENT_WIDTH / 2;
   switch (kind) {
     case 'resistor':
       return (
         <>
-          <Line
-            points={[-halfW, 0, -halfW + 8, 0]}
+          <Path data="M -30,0 L -20,0" stroke={SYMBOL_STROKE} strokeWidth={2} />
+          <Path
+            data="M -20,0 L -15,-10 L -5,10 L 5,-10 L 15,10 L 20,0"
             stroke={SYMBOL_STROKE}
             strokeWidth={2}
+            lineJoin="round"
           />
-          <Rect
-            x={-halfW + 8}
-            y={-7}
-            width={COMPONENT_WIDTH - 16}
-            height={14}
-            fill={SYMBOL_FILL}
-            stroke={SYMBOL_STROKE}
-            strokeWidth={2}
-          />
-          <Line points={[halfW - 8, 0, halfW, 0]} stroke={SYMBOL_STROKE} strokeWidth={2} />
+          <Path data="M 20,0 L 30,0" stroke={SYMBOL_STROKE} strokeWidth={2} />
         </>
       );
     case 'capacitor':
       return (
         <>
-          <Line points={[-halfW, 0, -8, 0]} stroke={SYMBOL_STROKE} strokeWidth={2} />
-          <Line points={[-8, -14, -8, 14]} stroke={SYMBOL_STROKE} strokeWidth={2} />
-          <Line points={[8, -14, 8, 14]} stroke={SYMBOL_STROKE} strokeWidth={2} />
-          <Line points={[8, 0, halfW, 0]} stroke={SYMBOL_STROKE} strokeWidth={2} />
+          <Path data="M -20,0 L -8,0" stroke={SYMBOL_STROKE} strokeWidth={2} />
+          <Path
+            data="M -8,-12 L -8,12 M 8,-12 L 8,12"
+            stroke={SYMBOL_STROKE}
+            strokeWidth={2}
+          />
+          <Path data="M 8,0 L 20,0" stroke={SYMBOL_STROKE} strokeWidth={2} />
         </>
       );
     case 'vsource':
       return (
         <>
-          <Line points={[-halfW, 0, -14, 0]} stroke={SYMBOL_STROKE} strokeWidth={2} />
+          <Path data="M -40,0 L -15,0" stroke={SYMBOL_STROKE} strokeWidth={2} />
           <Circle
             x={0}
             y={0}
-            radius={14}
+            radius={15}
             fill={SYMBOL_FILL}
             stroke={SYMBOL_STROKE}
             strokeWidth={2}
           />
-          <Line points={[14, 0, halfW, 0]} stroke={SYMBOL_STROKE} strokeWidth={2} />
-          <Line points={[-4, -7, 4, -7]} stroke={SYMBOL_STROKE} strokeWidth={2} />
-          <Line points={[0, -11, 0, -3]} stroke={SYMBOL_STROKE} strokeWidth={2} />
-          <Line points={[-4, 7, 4, 7]} stroke={SYMBOL_STROKE} strokeWidth={2} />
+          <Path data="M 15,0 L 40,0" stroke={SYMBOL_STROKE} strokeWidth={2} />
+          <Path
+            data="M -4,-7 L 4,-7 M 0,-11 L 0,-3 M -4,7 L 4,7"
+            stroke={SYMBOL_STROKE}
+            strokeWidth={2}
+          />
         </>
       );
     case 'ground':
       return (
         <>
-          <Line points={[-halfW, 0, 0, 0]} stroke={SYMBOL_STROKE} strokeWidth={2} />
-          <Line points={[halfW, 0, 0, 0]} stroke={SYMBOL_STROKE} strokeWidth={2} />
-          <Line points={[0, 0, 0, 6]} stroke={SYMBOL_STROKE} strokeWidth={2} />
-          <Line points={[-12, 6, 12, 6]} stroke={SYMBOL_STROKE} strokeWidth={2} />
-          <Line points={[-7, 11, 7, 11]} stroke={SYMBOL_STROKE} strokeWidth={2} />
-          <Line points={[-3, 16, 3, 16]} stroke={SYMBOL_STROKE} strokeWidth={2} />
+          <Path data="M -40,0 L 40,0" stroke={SYMBOL_STROKE} strokeWidth={2} />
+          <Path
+            data="M 0,0 L 0,6 M -14,6 L 14,6 M -9,11 L 9,11 M -4,16 L 4,16"
+            stroke={SYMBOL_STROKE}
+            strokeWidth={2}
+          />
+        </>
+      );
+    case 'diode':
+      return (
+        <>
+          <Path data="M -20,0 L -8,0" stroke={SYMBOL_STROKE} strokeWidth={2} />
+          <Path
+            data="M -8,-8 L 8,0 L -8,8 Z"
+            fill={SYMBOL_FILL}
+            stroke={SYMBOL_STROKE}
+            strokeWidth={2}
+            lineJoin="round"
+          />
+          <Path
+            data="M 8,-8 L 8,8"
+            stroke={SYMBOL_STROKE}
+            strokeWidth={2}
+            lineCap="square"
+          />
+          <Path data="M 8,0 L 20,0" stroke={SYMBOL_STROKE} strokeWidth={2} />
+        </>
+      );
+    case 'npn':
+    case 'pnp':
+      return (
+        <>
+          <Path data="M -40,0 L 0,0" stroke={SYMBOL_STROKE} strokeWidth={2} />
+          <Path data="M 0,-10 L 20,-30" stroke={SYMBOL_STROKE} strokeWidth={2} />
+          <Path data="M 0,10 L 20,30" stroke={SYMBOL_STROKE} strokeWidth={2} />
+          <Circle
+            x={0}
+            y={0}
+            radius={15}
+            fill={SYMBOL_FILL}
+            stroke={SYMBOL_STROKE}
+            strokeWidth={2}
+          />
+          <Path data="M 0,-10 L 0,10" stroke={SYMBOL_STROKE} strokeWidth={2} />
+          <Path
+            data={
+              kind === 'npn'
+                ? 'M 1,21 L 16,26 M 11,11 L 16,26'
+                : 'M 9,29 L 4,14 M 19,19 L 4,14'
+            }
+            stroke={SYMBOL_STROKE}
+            strokeWidth={2}
+            lineCap="round"
+          />
+        </>
+      );
+    case 'nmos':
+    case 'pmos':
+      return (
+        <>
+          <Path data="M -40,0 L -10,0" stroke={SYMBOL_STROKE} strokeWidth={2} />
+          {kind === 'pmos' && (
+            <Circle
+              x={-13}
+              y={0}
+              radius={3}
+              fill={SYMBOL_FILL}
+              stroke={SYMBOL_STROKE}
+              strokeWidth={2}
+            />
+          )}
+          <Path data="M -10,-14 L -10,14" stroke={SYMBOL_STROKE} strokeWidth={2} />
+          <Path
+            data="M -10,-14 L 10,-14 M -10,14 L 10,14"
+            stroke={SYMBOL_STROKE}
+            strokeWidth={2}
+          />
+          <Path data="M 0,-14 L 0,-40" stroke={SYMBOL_STROKE} strokeWidth={2} />
+          <Path data="M 0,14 L 0,40" stroke={SYMBOL_STROKE} strokeWidth={2} />
+          <Path
+            data="M 10,-14 L 10,-4 M 10,4 L 10,14"
+            stroke={SYMBOL_STROKE}
+            strokeWidth={2}
+          />
+          <Path
+            data={
+              kind === 'nmos'
+                ? 'M 18,-6 L 10,0 M 18,6 L 10,0'
+                : 'M 10,-6 L 18,0 M 10,6 L 18,0'
+            }
+            stroke={SYMBOL_STROKE}
+            strokeWidth={2}
+            lineCap="round"
+          />
         </>
       );
   }
@@ -131,8 +227,8 @@ export function SchematicComponentView({
   onDragEnd,
   onPinClick,
 }: SchematicComponentViewProps) {
-  const halfW = COMPONENT_WIDTH / 2;
-  const halfH = COMPONENT_HEIGHT / 2;
+  const { halfWidth, halfHeight } = componentHalfSize(component.kind);
+  const pins = pinIndexes(component.kind);
 
   const handleSelect = (event: KonvaEventObject<MouseEvent>) => {
     event.cancelBubble = true;
@@ -162,50 +258,51 @@ export function SchematicComponentView({
     >
       {selected && (
         <Rect
-          x={-halfW - SELECTION_PADDING}
-          y={-halfH - SELECTION_PADDING}
-          width={COMPONENT_WIDTH + SELECTION_PADDING * 2}
-          height={COMPONENT_HEIGHT + SELECTION_PADDING * 2}
+          x={-halfWidth - SELECTION_PADDING}
+          y={-halfHeight - SELECTION_PADDING}
+          width={(halfWidth + SELECTION_PADDING) * 2}
+          height={(halfHeight + SELECTION_PADDING) * 2}
           stroke={SELECTION_STROKE}
           strokeWidth={1.5}
           dash={[6, 4]}
         />
       )}
-      {/* Invisible hit area spanning the full symbol bounds so that gaps
-          between primitives (e.g. inside the capacitor) stay clickable. */}
       <Rect
-        x={-halfW - SELECTION_PADDING}
-        y={-halfH - SELECTION_PADDING}
-        width={COMPONENT_WIDTH + SELECTION_PADDING * 2}
-        height={COMPONENT_HEIGHT + SELECTION_PADDING * 2}
+        x={-halfWidth - SELECTION_PADDING}
+        y={-halfHeight - SELECTION_PADDING}
+        width={(halfWidth + SELECTION_PADDING) * 2}
+        height={(halfHeight + SELECTION_PADDING) * 2}
         fill="transparent"
       />
       <SymbolPrimitives kind={component.kind} />
       <Text
-        x={-halfW}
-        y={halfH + 6}
-        width={COMPONENT_WIDTH}
+        x={-halfWidth}
+        y={halfHeight + 6}
+        width={halfWidth * 2}
         text={formatValue(component.kind, component.params)}
         fontSize={12}
         fontFamily="monospace"
         fill="#b0bec5"
         align="center"
       />
-      {([0, 1] as const).map((index) => (
-        <Circle
-          key={index}
-          x={index === 0 ? -halfW : halfW}
-          y={0}
-          radius={PIN_RADIUS}
-          fill={activePinIndex === index ? ACTIVE_PIN_FILL : PIN_FILL}
-          stroke={PIN_STROKE}
-          strokeWidth={1.5}
-          hitStrokeWidth={8}
-          onMouseDown={handlePinDown}
-          onClick={handlePinClick(index)}
-          onTap={handlePinClick(index)}
-        />
-      ))}
+      {pins.map((index) => {
+        const offset = pinOffset(component.kind, index);
+        return (
+          <Circle
+            key={index}
+            x={offset.x}
+            y={offset.y}
+            radius={PIN_RADIUS}
+            fill={activePinIndex === index ? ACTIVE_PIN_FILL : PIN_FILL}
+            stroke={PIN_STROKE}
+            strokeWidth={1.5}
+            hitStrokeWidth={8}
+            onMouseDown={handlePinDown}
+            onClick={handlePinClick(index)}
+            onTap={handlePinClick(index)}
+          />
+        );
+      })}
     </Group>
   );
 }

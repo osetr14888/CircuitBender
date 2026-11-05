@@ -7,6 +7,11 @@ export const COMPONENT_KINDS: readonly ComponentKind[] = [
   'capacitor',
   'vsource',
   'ground',
+  'diode',
+  'npn',
+  'pnp',
+  'nmos',
+  'pmos',
 ];
 
 export const KIND_LABELS: Record<ComponentKind, string> = {
@@ -14,6 +19,11 @@ export const KIND_LABELS: Record<ComponentKind, string> = {
   capacitor: 'Capacitor',
   vsource: 'Voltage source',
   ground: 'Ground',
+  diode: 'Diode',
+  npn: 'NPN transistor',
+  pnp: 'PNP transistor',
+  nmos: 'NMOS transistor',
+  pmos: 'PMOS transistor',
 };
 
 export function isComponentKind(value: string): value is ComponentKind {

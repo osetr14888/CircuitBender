@@ -560,6 +560,21 @@ body {
 .palette-item[data-kind='ground'] .palette-icon {
   color: #b0bec5;
 }
+.palette-item[data-kind='diode'] .palette-icon {
+  color: #ff8a65;
+}
+.palette-item[data-kind='npn'] .palette-icon {
+  color: #ce93d8;
+}
+.palette-item[data-kind='pnp'] .palette-icon {
+  color: #f48fb1;
+}
+.palette-item[data-kind='nmos'] .palette-icon {
+  color: #4db6ac;
+}
+.palette-item[data-kind='pmos'] .palette-icon {
+  color: #7986cb;
+}
 .palette-label {
   flex: 1;
 }

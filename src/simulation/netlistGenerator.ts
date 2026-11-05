@@ -1,4 +1,5 @@
 import type { PinRef, SchematicComponent, SchematicProject } from '../types/schematic';
+import { pinIndexes } from '../components/schematicGeometry';
 
 const GROUND_NODE = '0';
 const OUTPUT_NODE = 'out';
@@ -79,8 +80,9 @@ export function generateNetlist(project: SchematicProject): NetlistAnalysis {
     if (component.kind !== 'ground') {
       continue;
     }
-    groundedRoots.add(nets.find(pinKey({ componentId: component.id, index: 0 })));
-    groundedRoots.add(nets.find(pinKey({ componentId: component.id, index: 1 })));
+    for (const index of pinIndexes(component.kind)) {
+      groundedRoots.add(nets.find(pinKey({ componentId: component.id, index })));
+    }
   }
   for (const component of devices) {
     if (component.kind !== 'vsource') {
@@ -97,7 +99,7 @@ export function generateNetlist(project: SchematicProject): NetlistAnalysis {
   let nextNodeNumber = 1;
 
   for (const component of devices) {
-    for (const index of [0, 1] as const) {
+    for (const index of pinIndexes(component.kind)) {
       const root = nets.find(pinKey({ componentId: component.id, index }));
       if (nodeByRoot.has(root)) {
         continue;
@@ -119,7 +121,7 @@ export function generateNetlist(project: SchematicProject): NetlistAnalysis {
     devices
       .filter((component) => component.kind === 'vsource')
       .flatMap((component) =>
-        ([0, 1] as const).map((index) =>
+        pinIndexes(component.kind).map((index) =>
           nets.find(pinKey({ componentId: component.id, index })),
         ),
       ),
@@ -139,10 +141,10 @@ export function generateNetlist(project: SchematicProject): NetlistAnalysis {
 
   const conductorRoots = new Set<string>();
   for (const component of devices) {
-    if (component.kind !== 'resistor' && component.kind !== 'vsource') {
+    if (component.kind === 'capacitor') {
       continue;
     }
-    for (const index of [0, 1] as const) {
+    for (const index of pinIndexes(component.kind)) {
       conductorRoots.add(nets.find(pinKey({ componentId: component.id, index })));
     }
   }
@@ -150,9 +152,11 @@ export function generateNetlist(project: SchematicProject): NetlistAnalysis {
 
   const safeName = asciiOnly(project.name);
   const lines = [safeName.length > 0 ? `* CircuitBender - ${safeName}` : '* CircuitBender'];
+  const models = new Set<string>();
   for (const component of devices) {
     const node1 = nodeForPin({ componentId: component.id, index: 0 });
     const node2 = nodeForPin({ componentId: component.id, index: 1 });
+    const node3 = nodeForPin({ componentId: component.id, index: 2 });
     const name = spiceDeviceName(component);
     switch (component.kind) {
       case 'resistor':
@@ -170,7 +174,43 @@ export function generateNetlist(project: SchematicProject): NetlistAnalysis {
         lines.push(`V${name} ${node1} ${node2} PULSE(0 ${amplitude} 0 1n 1n 1m 2m)`);
         break;
       }
+      case 'diode':
+        models.add('DMOD');
+        lines.push(`D${name} ${node1} ${node2} DMOD`);
+        break;
+      case 'npn':
+        models.add('QNPN');
+        lines.push(`Q${name} ${node1} ${node2} ${node3} QNPN`);
+        break;
+      case 'pnp':
+        models.add('QPNP');
+        lines.push(`Q${name} ${node1} ${node2} ${node3} QPNP`);
+        break;
+      case 'nmos':
+        models.add('NMOD');
+        lines.push(`M${name} ${node1} ${node2} ${node3} ${node3} NMOD`);
+        break;
+      case 'pmos':
+        models.add('PMOD');
+        lines.push(`M${name} ${node1} ${node2} ${node3} ${node3} PMOD`);
+        break;
     }
+  }
+
+  if (models.has('DMOD')) {
+    lines.push('.model DMOD d(IS=1e-14)');
+  }
+  if (models.has('QNPN')) {
+    lines.push('.model QNPN npn(IS=1e-14 BF=100)');
+  }
+  if (models.has('QPNP')) {
+    lines.push('.model QPNP pnp(IS=1e-14 BF=100)');
+  }
+  if (models.has('NMOD')) {
+    lines.push('.model NMOD nmos(VTO=1 KP=2e-4)');
+  }
+  if (models.has('PMOD')) {
+    lines.push('.model PMOD pmos(VTO=-1 KP=2e-4)');
   }
 
   lines.push('.tran 1u 5m', '.end');

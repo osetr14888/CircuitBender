@@ -1,4 +1,14 @@
-import { Activity, ArrowDownToLine, Battery, GripVertical, Pause } from 'lucide-react';
+import {
+  Activity,
+  ArrowDownToLine,
+  Battery,
+  Circle,
+  CircleDot,
+  GitCommitHorizontal,
+  GripVertical,
+  Pause,
+  Zap,
+} from 'lucide-react';
 import type { LucideIcon } from 'lucide-react';
 import type { ComponentKind } from '../types/schematic';
 import { COMPONENT_DRAG_TYPE, COMPONENT_KINDS, KIND_LABELS } from './componentCatalog';
@@ -8,6 +18,11 @@ const KIND_ICONS: Record<ComponentKind, LucideIcon> = {
   capacitor: Pause,
   vsource: Battery,
   ground: ArrowDownToLine,
+  diode: Zap,
+  npn: CircleDot,
+  pnp: Circle,
+  nmos: GitCommitHorizontal,
+  pmos: GitCommitHorizontal,
 };
 
 export function Sidebar() {
